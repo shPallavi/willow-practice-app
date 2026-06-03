@@ -12,25 +12,25 @@ env:
   WEB_IMAGE: gcr.io/ace-course-web-app-497605/willow-web
 
 jobs:
-  deploy:
-    name: Build, push, and deploy
+  ci:
+    name: Test and build
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: |
             api/pnpm-lock.yaml
@@ -60,18 +60,61 @@ jobs:
         working-directory: web
         run: pnpm build
 
+  deploy:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check deployment secrets
+        id: secrets
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+          GKE_LOCATION: ${{ secrets.GKE_LOCATION }}
+        run: |
+          ready=true
+
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "::notice::Skipping deployment because the GCP_SA_KEY repository secret is missing."
+            ready=false
+          fi
+
+          if [ -z "$GKE_CLUSTER" ]; then
+            echo "::notice::Skipping deployment because the GKE_CLUSTER repository secret is missing."
+            ready=false
+          fi
+
+          if [ -z "$GKE_LOCATION" ]; then
+            echo "::notice::Skipping deployment because the GKE_LOCATION repository secret is missing."
+            ready=false
+          fi
+
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@v5
+
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        if: steps.secrets.outputs.ready == 'true'
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        if: steps.secrets.outputs.ready == 'true'
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Configure Docker for GCR
+        if: steps.secrets.outputs.ready == 'true'
         run: gcloud auth configure-docker --quiet
 
       - name: Build and push API image
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           docker build \
             --tag "${API_IMAGE}:${GITHUB_SHA}" \
@@ -81,6 +124,7 @@ jobs:
           docker push "${API_IMAGE}:latest"
 
       - name: Build and push web image
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           docker build \
             --tag "${WEB_IMAGE}:${GITHUB_SHA}" \
@@ -90,13 +134,15 @@ jobs:
           docker push "${WEB_IMAGE}:latest"
 
       - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v2
+        if: steps.secrets.outputs.ready == 'true'
+        uses: google-github-actions/get-gke-credentials@v3
         with:
           cluster_name: ${{ secrets.GKE_CLUSTER }}
           location: ${{ secrets.GKE_LOCATION }}
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: Apply Kubernetes manifests
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           kubectl apply -f deployment.yaml
           kubectl apply -f service.yaml
