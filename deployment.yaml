@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: willow-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: willow-api
+  template:
+    metadata:
+      labels:
+        app: willow-api
+    spec:
+      containers:
+      - name: willow-api
+        image: gcr.io/ace-course-web-app-497605/willow-api:latest
+        ports:
+        - containerPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: willow-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: willow-web
+  template:
+    metadata:
+      labels:
+        app: willow-web
+    spec:
+      containers:
+      - name: willow-web
+        image: gcr.io/ace-course-web-app-497605/willow-web:latest
+        ports:
+        - containerPort: 3000
