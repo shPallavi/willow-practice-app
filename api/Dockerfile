@@ -9,7 +9,13 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 
 # install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
+
+# copy Prisma schema
+COPY prisma ./prisma
+
+# generate Prisma client
+RUN npx prisma generate
 
 # now copy rest of code
 COPY . .
@@ -17,8 +23,8 @@ COPY . .
 # build NestJS
 RUN pnpm build
 
-ENV PORT=3000
+ENV PORT=3001
 
-EXPOSE 3000
+EXPOSE 3001
 
 CMD ["node", "dist/main.js"]

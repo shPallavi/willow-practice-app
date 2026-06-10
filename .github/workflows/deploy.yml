@@ -40,6 +40,10 @@ jobs:
         working-directory: api
         run: pnpm install --frozen-lockfile
 
+      - name: Lint API
+        working-directory: api
+        run: pnpm lint
+
       - name: Test API
         working-directory: api
         run: pnpm test
@@ -75,6 +79,7 @@ jobs:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
           GKE_LOCATION: ${{ secrets.GKE_LOCATION }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           ready=true
 
@@ -90,6 +95,11 @@ jobs:
 
           if [ -z "$GKE_LOCATION" ]; then
             echo "::notice::Skipping deployment because the GKE_LOCATION repository secret is missing."
+            ready=false
+          fi
+
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::Skipping deployment because the DATABASE_URL repository secret is missing."
             ready=false
           fi
 
@@ -129,6 +139,7 @@ jobs:
           docker build \
             --tag "${WEB_IMAGE}:${GITHUB_SHA}" \
             --tag "${WEB_IMAGE}:latest" \
+            --build-arg NEXT_PUBLIC_API_URL="http://willow-api-service" \
             ./web
           docker push "${WEB_IMAGE}:${GITHUB_SHA}"
           docker push "${WEB_IMAGE}:latest"
@@ -141,10 +152,18 @@ jobs:
           location: ${{ secrets.GKE_LOCATION }}
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Create or update database secret
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          kubectl delete secret willow-db-secret --ignore-not-found
+          kubectl create secret generic willow-db-secret \
+            --from-literal=database-url="${{ secrets.DATABASE_URL }}"
+
       - name: Apply Kubernetes manifests
         if: steps.secrets.outputs.ready == 'true'
         run: |
           kubectl apply -f deployment.yaml
+          kubectl apply -f web-deployment.yaml
           kubectl apply -f service.yaml
           kubectl set image deployment/willow-api willow-api="${API_IMAGE}:${GITHUB_SHA}"
           kubectl set image deployment/willow-web willow-web="${WEB_IMAGE}:${GITHUB_SHA}"
