@@ -8,8 +8,10 @@ on:
 
 env:
   GCP_PROJECT_ID: ace-course-web-app-497605
-  API_IMAGE: gcr.io/ace-course-web-app-497605/willow-api
-  WEB_IMAGE: gcr.io/ace-course-web-app-497605/willow-web
+  REGISTRY: us-central1-docker.pkg.dev
+  REPOSITORY: willow-images
+  API_IMAGE: us-central1-docker.pkg.dev/ace-course-web-app-497605/willow-images/willow-api
+  WEB_IMAGE: us-central1-docker.pkg.dev/ace-course-web-app-497605/willow-images/willow-web
 
 jobs:
   ci:
@@ -119,9 +121,9 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Configure Docker for GCR
+      - name: Configure Docker for Artifact Registry
         if: steps.secrets.outputs.ready == 'true'
-        run: gcloud auth configure-docker --quiet
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build and push API image
         if: steps.secrets.outputs.ready == 'true'

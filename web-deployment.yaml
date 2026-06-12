@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: willow-web
-        image: gcr.io/ace-course-web-app-497605/willow-web:latest
+        image: us-central1-docker.pkg.dev/ace-course-web-app-497605/willow-images/willow-web:latest
         ports:
         - containerPort: 3000
         env:
