@@ -68,7 +68,7 @@ jobs:
     name: Deploy to GKE
     runs-on: ubuntu-latest
     needs: ci
-    if: github.event_name == 'workflow_dispatch'
+    if: always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     permissions:
       contents: read
 
@@ -126,23 +126,23 @@ jobs:
       - name: Build and push API image
         if: steps.secrets.outputs.ready == 'true'
         run: |
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             --tag "${API_IMAGE}:${GITHUB_SHA}" \
             --tag "${API_IMAGE}:latest" \
+            --push \
             ./api
-          docker push "${API_IMAGE}:${GITHUB_SHA}"
-          docker push "${API_IMAGE}:latest"
 
       - name: Build and push web image
         if: steps.secrets.outputs.ready == 'true'
         run: |
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             --tag "${WEB_IMAGE}:${GITHUB_SHA}" \
             --tag "${WEB_IMAGE}:latest" \
             --build-arg NEXT_PUBLIC_API_URL="http://willow-api-service" \
+            --push \
             ./web
-          docker push "${WEB_IMAGE}:${GITHUB_SHA}"
-          docker push "${WEB_IMAGE}:latest"
 
       - name: Get GKE credentials
         if: steps.secrets.outputs.ready == 'true'
